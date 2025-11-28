@@ -116,19 +116,7 @@ with {
 // K32: 36 substeps (2 cycles × 18 points/cycle)
 // Final outputs: (M_new, H_new, M_sum) at indices (0, 1, 3)
 ja_loop36(M_prev, H_prev, H_audio, phi_b, dphi_) =
-  M_prev, H_prev, H_audio, 0.0, phi_b, D
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
+  M_prev, H_prev, H_audio, 0.0, phi_b, D : seq(i, 36, ja_substep_with_phase)
   <: ba.selector(0, 6), ba.selector(1, 6), ba.selector(3, 6)
 with {
   N = 36.0;
@@ -138,25 +126,7 @@ with {
 // K48: 54 substeps (3 cycles × 18 points/cycle)
 // Final outputs: (M_new, H_new, M_sum) at indices (0, 1, 3)
 ja_loop54(M_prev, H_prev, H_audio, phi_b, dphi_) =
-  M_prev, H_prev, H_audio, 0.0, phi_b, D
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
+  M_prev, H_prev, H_audio, 0.0, phi_b, D : seq(i, 54, ja_substep_with_phase)
   <: ba.selector(0, 6), ba.selector(1, 6), ba.selector(3, 6)
 with {
   N = 54.0;
@@ -166,29 +136,7 @@ with {
 // K60: 66 substeps (3 cycles × 22 points/cycle)
 // Output order: M_new, H_new, M_sum (for correct feedback via ~ operator)
 ja_loop66(M_prev, H_prev, H_audio, phi_b, dphi_) =
-  M_prev, H_prev, H_audio, 0.0, phi_b, D
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
-  : ja_substep_with_phase : ja_substep_with_phase : ja_substep_with_phase
+  M_prev, H_prev, H_audio, 0.0, phi_b, D : seq(i, 66, ja_substep_with_phase)
   <: ba.selector(0, 6), ba.selector(1, 6), ba.selector(3, 6)
 with {
   N = 66.0;
