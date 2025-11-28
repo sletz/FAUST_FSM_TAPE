@@ -1,0 +1,34 @@
+# Build directories
+build/
+*/build/
+**/build/
+
+# JUCE (clone locally, don't commit)
+juce_plugin/JUCE/
+JUCE/
+
+# IDE files
+*.xcodeproj/
+*.xcworkspace/
+.vscode/
+.idea/
+*.user
+
+# macOS
+.DS_Store
+*.dSYM/
+
+# FAUST generated
+faust/**/ja_streaming_bias_proto/
+
+# Compiled objects
+*.o
+*.a
+*.dylib
+*.so
+*.dll
+
+# Plugin builds
+*.vst3/
+*.component/
+*.app/

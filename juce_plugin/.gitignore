@@ -1,0 +1,18 @@
+# JUCE framework (clone separately)
+JUCE/
+
+# Build output
+build/
+
+# Xcode project files
+*.xcodeproj/
+*.xcworkspace/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# macOS
+.DS_Store
