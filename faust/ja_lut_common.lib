@@ -1,14 +1,15 @@
 // Common helpers for JA LUT bilinear interpolation
 
-// Compute flattened index into a (m_size x h_size) table
-ja_lut_idx(h_size, m_idx, h_idx) = m_idx * h_size + h_idx;
-
-// Normalize a value into [0, 1]
-ja_lut_norm(v, v_min, v_max) = (v - v_min) / (v_max - v_min);
-
 // Bilinear lookup on a 2D LUT with clamping at the borders
 ja_lut_bilinear(table, m_min, m_max, h_min, h_max, m_size, h_size, m, h) = result
 with {
+
+    // Compute flattened index into a (m_size x h_size) table
+    ja_lut_idx(h_size, m_idx, h_idx) = m_idx * h_size + h_idx;
+
+    // Normalize a value into [0, 1]
+    ja_lut_norm(v, v_min, v_max) = (v - v_min) / (v_max - v_min);
+
     m_n = max(0.0, min(1.0, ja_lut_norm(m, m_min, m_max)));
     h_n = max(0.0, min(1.0, ja_lut_norm(h, h_min, h_max)));
     
