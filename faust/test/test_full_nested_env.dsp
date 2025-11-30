@@ -1,3 +1,12 @@
+// Test case: NESTED environment { } structure (ALL K modes)
+// Expected: UNKNOWN - testing if environment{} avoids the with{} bug
+// Structure: All code wrapped in environment { }, accessed via namespace
+//
+// This file tests if using environment { } instead of function+with { }
+// avoids the rdtable lookup issue. Compare with:
+//   - test_full_flat.dsp (working reference)
+//   - test_full_nested_with.dsp (function+with pattern, expected broken)
+
 import("stdfaust.lib");
 import("ja_lut_k28.lib");   // 2D LUT for K28: 1.5 cycles, 27 substeps (ultra lofi)
 import("ja_lut_k45.lib");   // 2D LUT for K45: 2.5 cycles, 45 substeps (lofi)
@@ -10,60 +19,14 @@ import("ja_lut_k495.lib");  // 2D LUT for K495: 22.5 cycles, 495 substeps (ultra
 import("ja_lut_k1045.lib"); // 2D LUT for K1045: 47.5 cycles, 1045 substeps (extreme)
 import("ja_lut_k2101.lib"); // 2D LUT for K2101: 95.5 cycles, 2101 substeps (beyond physical)
 
-//-----------------tape_channel--------------------
-// Phase-locked streaming Jiles-Atherton tape stage: one explicit substep
-// per sample plus LUT-accelerated remainder, with fixed bias amplitude and
-// mode-selectable bias oscillators (K28..K2101). Drive is applied, then the
-// JA hysteresis core runs, DC is blocked, drive is compensated, and the wet
-// signal is blended to dry.
+//==============================================================================
+// JA: Environment namespace containing all JA hysteresis code
 //
-// All modes use half-integer bias cycles + odd substeps for rich harmonic
-// content. This ensures opposite bias polarity between adjacent samples,
-// introducing even harmonics that sound warmer and more musical.
-//
-// #### Usage
-//
-// ```
-// _ : tape_channel(input_gain_db, output_gain_db, drive_db, bias_mode, mix) : _;
-// ```
-//
-// Where:
-//
-// * input_gain_db: front-end gain in dB.
-// * output_gain_db: post-stage gain in dB.
-// * drive_db: pre-saturation drive in dB.
-// * bias_mode: selects the LUT resolution/flavour (0=K28..9=K2101).
-// * mix: dry/wet blend from 0 (dry) to 1 (wet).
-//
-// #### Example
-//
-// ```
-// process = par(i, 2, tape_channel(0.0, 15.9, 0.0, 4, 1.0));
-// ```
-//
-// #### Test
-// ```
-// tape_channel_test = par(i, 2, tape_channel(0.0, 15.9, 0.0, 4, 1.0));
-// ```
-//
-// #### References
-//
-// * Jiles, D.C. and Atherton, D.L. (1986) "Theory of ferromagnetic hysteresis"
-// * LUTs precomputed for bias_level=0.41, bias_scale=11.0
-//-------------------------------------------------
-tape_channel(input_gain_db, output_gain_db, drive_db, bias_mode_val, mix_val) =
-  ef.dryWetMixer(mix_val, wet_gained)
-with {
-  drive_gain      = ba.db2linear(drive_db);
-  input_gain_lin  = ba.db2linear(input_gain_db);
-  output_gain_lin = ba.db2linear(output_gain_db);
-  drive_comp      = 1.0 / drive_gain;
-
-  wet_gained = tape_stage(input_gain_lin, drive_gain, bias_mode_val)
-               : *(drive_comp)
-               : *(output_gain_lin);
-
-  // ===== Physics parameters =====
+// This is an alternative structure to the function+with{} pattern.
+// Everything is wrapped in environment { } and accessed via JA.xxx
+//==============================================================================
+JA = environment {
+  // ===== Physics parameters (fixed for prototype) =====
   Ms              = 320.0;      // Saturation magnetization
   a_density       = 720.0;      // Anhysteretic curve shape
   k_pinning       = 280.0;      // Coercivity (loop width)
@@ -76,9 +39,11 @@ with {
   a_norm     = a_density / Ms_safe;
   k_norm     = k_pinning / Ms_safe;
   c_norm     = c_reversibility;
-  bias_amp   = 0.41 * 11.0;
+  bias_amp   = 0.41 * 11.0;  // Fixed for LUT compatibility
 
   // ===== Precomputed bias lookup tables =====
+  // All modes use half-integer cycles for rich harmonic content
+
   // K28: 1.5 cycles = 3pi, 27 substeps (ultra lofi)
   tablesize_27 = 27;
   dphi_27 = 3.0 * ma.PI / tablesize_27;
@@ -153,10 +118,11 @@ with {
   inv_2101    = 1.0 / 2101.0;
   inv_a_norm  = 1.0 / a_norm;
 
-  // ===== Real tanh (affordable with LUT optimization) =====
+  // ===== Real tanh (we can afford it now with LUT optimization) =====
   fast_tanh(x) = ma.tanh(x);
 
   // ===== Generic substep 0 (parameterized by bias LUT) =====
+  // This is the only substep computed in real-time; the rest comes from LUT.
   ja_substep0(bias_val, M_prev, H_prev, H_audio) = M1, H1
   with {
     H1 = H_audio + bias_amp * bias_val;
@@ -292,17 +258,17 @@ with {
   };
 
   // ===== Streaming JA hysteresis with mode selection (10 modes) =====
-  ja_hysteresis(bias_mode, H_in) =
-    ba.if(bias_mode < 0.5, loopK28(H_in),
-    ba.if(bias_mode < 1.5, loopK45(H_in),
-    ba.if(bias_mode < 2.5, loopK63(H_in),
-    ba.if(bias_mode < 3.5, loopK99(H_in),
-    ba.if(bias_mode < 4.5, loopK121(H_in),
-    ba.if(bias_mode < 5.5, loopK187(H_in),
-    ba.if(bias_mode < 6.5, loopK253(H_in),
-    ba.if(bias_mode < 7.5, loopK495(H_in),
-    ba.if(bias_mode < 8.5, loopK1045(H_in),
-                           loopK2101(H_in))))))))))
+  ja_hysteresis(bias_mode_val, H_in) =
+    ba.if(bias_mode_val < 0.5, loopK28(H_in),
+    ba.if(bias_mode_val < 1.5, loopK45(H_in),
+    ba.if(bias_mode_val < 2.5, loopK63(H_in),
+    ba.if(bias_mode_val < 3.5, loopK99(H_in),
+    ba.if(bias_mode_val < 4.5, loopK121(H_in),
+    ba.if(bias_mode_val < 5.5, loopK187(H_in),
+    ba.if(bias_mode_val < 6.5, loopK253(H_in),
+    ba.if(bias_mode_val < 7.5, loopK495(H_in),
+    ba.if(bias_mode_val < 8.5, loopK1045(H_in),
+                               loopK2101(H_in))))))))))
   with {
     loopK28(H) = (loop ~ (mem, mem)) : ba.selector(2, 3)
     with { loop(recM, recH) = recM, recH, H : ja_loop_k28; };
@@ -338,47 +304,47 @@ with {
   // ===== DC blocker =====
   dc_blocker = fi.SVFTPT.HP2(10.0, 0.7071);
 
-  // ===== Tape stage =====
-  tape_stage(input_gain_lin, drive_gain, bias_mode) =
-    _ * input_gain_lin
-    : *(drive_gain)
-    : ja_hysteresis(bias_mode)
-    : dc_blocker;
+  //============================================================================
+  // tape_channel: Main processing function
+  //
+  // Parameters:
+  //   input_gain_db  : Input gain in dB
+  //   output_gain_db : Output gain in dB
+  //   drive_db       : Drive/saturation in dB
+  //   bias_mode_val  : Bias mode selector (0-9)
+  //   mix_val        : Dry/wet mix (0-1)
+  //============================================================================
+  tape_channel(input_gain_db, output_gain_db, drive_db, bias_mode_val, mix_val) =
+    ef.dryWetMixer(mix_val, wet_gained)
+  with {
+    input_gain  = ba.db2linear(input_gain_db) : si.smoo;
+    output_gain = ba.db2linear(output_gain_db) : si.smoo;
+    drive_gain  = ba.db2linear(drive_db) : si.smoo;
+    drive_comp  = 1.0 / drive_gain;  // Compensate: +6dB drive -> -6dB output
+
+    tape_stage(x) =
+      x * input_gain
+      : *(drive_gain)
+      : ja_hysteresis(bias_mode_val)
+      : dc_blocker
+      : *(drive_comp);
+
+    wet_gained = tape_stage : *(output_gain);
+  };
 };
 
-//-----------------tape_channel_ui--------------------
-// UI wrapper that binds sliders to the core `tape_channel` parameters with
-// smoothing, exposing the same bias modes and mix control.
-//
-// #### Usage
-//
-// ```
-// _ : tape_channel_ui : _;
-// ```
-//
-// #### Example
-//
-// ```
-// process = par(i, 2, tape_channel_ui);
-// ```
-//
-// #### Test
-// ```
-// tape_channel_ui_test = par(i, 2, tape_channel_ui);
-// ```
-//
-// #### References
-//
-// * README.md (JA hysteresis tape overview)
-//-------------------------------------------------
+//==============================================================================
+// tape_channel_ui: UI wrapper with sliders
+// Accesses tape_channel from the JA environment namespace
+//==============================================================================
 tape_channel_ui =
-  tape_channel(input_gain_db, output_gain_db, drive_db_ui, bias_mode_ui, mix_ui)
+  JA.tape_channel(input_gain_db, output_gain_db, drive_db, bias_mode, mix)
 with {
-  input_gain_db  = hslider("Input Gain [dB]", 0.0, -24.0, 24.0, 0.1) : si.smoo;
-  output_gain_db = hslider("Output Gain [dB]", 15.9, -24.0, 48.0, 0.1) : si.smoo;
-  drive_db_ui    = hslider("Drive [dB]", 0.0, -18.0, 18.0, 0.1) : si.smoo;
-  bias_mode_ui   = nentry("Bias Mode [style:menu{'K28 Ultra LoFi':0;'K45 LoFi':1;'K63 Vintage':2;'K99 Warm':3;'K121 Standard':4;'K187 HQ':5;'K253 Detailed':6;'K495 Ultra':7;'K1045 Extreme':8;'K2101 Beyond':9}]", 4, 0, 9, 1);
-  mix_ui         = hslider("Mix [Dry->Wet]", 1.0, 0.0, 1.0, 0.01) : si.smoo;
+  input_gain_db  = hslider("Input Gain [dB]", 0.0, -24.0, 24.0, 0.1);
+  output_gain_db = hslider("Output Gain [dB]", 15.9, -24.0, 48.0, 0.1);
+  drive_db       = hslider("Drive [dB]", 0.0, -18.0, 18.0, 0.1);
+  bias_mode      = nentry("Bias Mode [style:menu{'K28 Ultra LoFi':0;'K45 LoFi':1;'K63 Vintage':2;'K99 Warm':3;'K121 Standard':4;'K187 HQ':5;'K253 Detailed':6;'K495 Ultra':7;'K1045 Extreme':8;'K2101 Beyond':9}]", 4, 0, 9, 1);
+  mix            = hslider("Mix [Dry->Wet]", 1.0, 0.0, 1.0, 0.01);
 };
 
 process = par(i, 2, tape_channel_ui);

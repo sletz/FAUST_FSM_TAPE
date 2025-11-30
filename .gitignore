@@ -23,6 +23,16 @@ faust/**/ja_streaming_bias_proto/
 faust/dev/ja_streaming_bias_proto/
 faust/examples/jah_tape_demo/
 
+# FAUST test builds (faust2juce output - keep .dsp, ignore generated folders)
+faust/test/*/Builds/
+faust/test/*/JuceLibraryCode/
+faust/test/*/*.cpp
+faust/test/*/*.jucer
+faust/bugfix/*/Builds/
+faust/bugfix/*/JuceLibraryCode/
+faust/bugfix/*/*.cpp
+faust/bugfix/*/*.jucer
+
 # JUCE generated (Projucer)
 juce_plugin/Builds/
 juce_plugin/JuceLibraryCode/

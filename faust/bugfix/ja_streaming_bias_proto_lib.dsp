@@ -1,3 +1,42 @@
+// Dev prototype - mirrors jahysteresis.lib
+//############### jahysteresis.lib ##################
+// Jiles-Atherton Magnetic Hysteresis Library
+//
+// A FAUST library for tape saturation simulation based on the Jiles-Atherton
+// model of ferromagnetic hysteresis with phase-locked bias oscillator.
+// Uses 2D LUT optimization for production-viable CPU cost (<1% vs ~24% original).
+//
+// All modes use half-integer bias cycles + odd substeps for rich harmonic content.
+// This ensures opposite bias polarity between adjacent samples, introducing
+// even harmonics that sound warmer and more musical.
+//
+// * Tape Channel Processing
+// * JA Hysteresis Core
+// * LUT-Accelerated Modes (K28-K2101)
+//
+// It should be used using the `jah` environment:
+//
+// ```
+// jah = library("jahysteresis.lib");
+// process = jah.tape_channel_ui;
+// ```
+//
+// #### References
+//
+// * Jiles, D.C. and Atherton, D.L. (1986) "Theory of ferromagnetic hysteresis"
+// * Walters, S.J. "Full Spectrum Magnetization" (phase-locked bias oscillator)
+// * <https://github.com/Mando-369/FAUST_FSM_TAPE>
+//
+//##################################################
+
+declare name "Jiles-Atherton Hysteresis Library";
+declare version "0.2.0";
+declare author "Thomas Mandolini";
+declare license "BSD";
+declare copyright "2025 Thomas Mandolini";
+
+// Its official prefix is `jah`.
+
 import("stdfaust.lib");
 import("ja_lut_k28.lib");   // 2D LUT for K28: 1.5 cycles, 27 substeps (ultra lofi)
 import("ja_lut_k45.lib");   // 2D LUT for K45: 2.5 cycles, 45 substeps (lofi)
@@ -17,10 +56,6 @@ import("ja_lut_k2101.lib"); // 2D LUT for K2101: 95.5 cycles, 2101 substeps (bey
 // JA hysteresis core runs, DC is blocked, drive is compensated, and the wet
 // signal is blended to dry.
 //
-// All modes use half-integer bias cycles + odd substeps for rich harmonic
-// content. This ensures opposite bias polarity between adjacent samples,
-// introducing even harmonics that sound warmer and more musical.
-//
 // #### Usage
 //
 // ```
@@ -32,7 +67,7 @@ import("ja_lut_k2101.lib"); // 2D LUT for K2101: 95.5 cycles, 2101 substeps (bey
 // * input_gain_db: front-end gain in dB.
 // * output_gain_db: post-stage gain in dB.
 // * drive_db: pre-saturation drive in dB.
-// * bias_mode: selects the LUT resolution/flavour (0=K28..9=K2101).
+// * bias_mode: selects the LUT resolution/flavour (0-9: K28..K2101).
 // * mix: dry/wet blend from 0 (dry) to 1 (wet).
 //
 // #### Example
@@ -43,32 +78,34 @@ import("ja_lut_k2101.lib"); // 2D LUT for K2101: 95.5 cycles, 2101 substeps (bey
 //
 // #### Test
 // ```
-// tape_channel_test = par(i, 2, tape_channel(0.0, 15.9, 0.0, 4, 1.0));
+// jah = library("jahysteresis.lib");
+// tape_channel_test = par(i, 2, jah.tape_channel(0.0, 15.9, 0.0, 4, 1.0));
 // ```
 //
 // #### References
 //
 // * Jiles, D.C. and Atherton, D.L. (1986) "Theory of ferromagnetic hysteresis"
-// * LUTs precomputed for bias_level=0.41, bias_scale=11.0
+// * <https://github.com/Mando-369/FAUST_FSM_TAPE>
+//
 //-------------------------------------------------
 tape_channel(input_gain_db, output_gain_db, drive_db, bias_mode_val, mix_val) =
   ef.dryWetMixer(mix_val, wet_gained)
 with {
-  drive_gain      = ba.db2linear(drive_db);
-  input_gain_lin  = ba.db2linear(input_gain_db);
+  drive_gain     = ba.db2linear(drive_db);
+  input_gain_lin = ba.db2linear(input_gain_db);
   output_gain_lin = ba.db2linear(output_gain_db);
-  drive_comp      = 1.0 / drive_gain;
+  drive_comp     = 1.0 / drive_gain;  // Compensate: +6dB drive -> -6dB output
 
   wet_gained = tape_stage(input_gain_lin, drive_gain, bias_mode_val)
                : *(drive_comp)
                : *(output_gain_lin);
 
-  // ===== Physics parameters =====
-  Ms              = 320.0;      // Saturation magnetization
-  a_density       = 720.0;      // Anhysteretic curve shape
-  k_pinning       = 280.0;      // Coercivity (loop width)
-  c_reversibility = 0.18;       // Reversibility ratio
-  alpha_coupling  = 0.015;      // Mean field coupling
+  // ===== Physics parameters (fixed for prototype) =====
+  Ms              = 320.0;
+  a_density       = 720.0;
+  k_pinning       = 280.0;
+  c_reversibility = 0.18;
+  alpha_coupling  = 0.015;
 
   // ===== Derived constants (fixed bias for LUT) =====
   Ms_safe    = ba.if(Ms > 1e-6, Ms, 1e-6);
@@ -76,9 +113,11 @@ with {
   a_norm     = a_density / Ms_safe;
   k_norm     = k_pinning / Ms_safe;
   c_norm     = c_reversibility;
-  bias_amp   = 0.41 * 11.0;
+  bias_amp   = 0.41 * 11.0;  // Fixed for LUT compatibility
 
   // ===== Precomputed bias lookup tables =====
+  // All modes use half-integer cycles for rich harmonic content
+
   // K28: 1.5 cycles = 3pi, 27 substeps (ultra lofi)
   tablesize_27 = 27;
   dphi_27 = 3.0 * ma.PI / tablesize_27;
@@ -139,7 +178,6 @@ with {
   bias_gen_2101(n) = sin((float(ba.period(n)) + 0.5) * dphi_2101);
   bias_lut_2101(idx) = rdtable(tablesize_2101, bias_gen_2101(tablesize_2101), int(idx));
 
-  // ===== Inverse substep counts =====
   sigma       = 1e-6;
   inv_27      = 1.0 / 27.0;
   inv_45      = 1.0 / 45.0;
@@ -153,7 +191,7 @@ with {
   inv_2101    = 1.0 / 2101.0;
   inv_a_norm  = 1.0 / a_norm;
 
-  // ===== Real tanh (affordable with LUT optimization) =====
+  // ===== Real tanh (we can afford it now with LUT optimization) =====
   fast_tanh(x) = ma.tanh(x);
 
   // ===== Generic substep 0 (parameterized by bias LUT) =====
@@ -292,17 +330,17 @@ with {
   };
 
   // ===== Streaming JA hysteresis with mode selection (10 modes) =====
-  ja_hysteresis(bias_mode, H_in) =
-    ba.if(bias_mode < 0.5, loopK28(H_in),
-    ba.if(bias_mode < 1.5, loopK45(H_in),
-    ba.if(bias_mode < 2.5, loopK63(H_in),
-    ba.if(bias_mode < 3.5, loopK99(H_in),
-    ba.if(bias_mode < 4.5, loopK121(H_in),
-    ba.if(bias_mode < 5.5, loopK187(H_in),
-    ba.if(bias_mode < 6.5, loopK253(H_in),
-    ba.if(bias_mode < 7.5, loopK495(H_in),
-    ba.if(bias_mode < 8.5, loopK1045(H_in),
-                           loopK2101(H_in))))))))))
+  ja_hysteresis(bias_mode_val, H_in) =
+    ba.if(bias_mode_val < 0.5, loopK28(H_in),
+    ba.if(bias_mode_val < 1.5, loopK45(H_in),
+    ba.if(bias_mode_val < 2.5, loopK63(H_in),
+    ba.if(bias_mode_val < 3.5, loopK99(H_in),
+    ba.if(bias_mode_val < 4.5, loopK121(H_in),
+    ba.if(bias_mode_val < 5.5, loopK187(H_in),
+    ba.if(bias_mode_val < 6.5, loopK253(H_in),
+    ba.if(bias_mode_val < 7.5, loopK495(H_in),
+    ba.if(bias_mode_val < 8.5, loopK1045(H_in),
+                                loopK2101(H_in))))))))))
   with {
     loopK28(H) = (loop ~ (mem, mem)) : ba.selector(2, 3)
     with { loop(recM, recH) = recM, recH, H : ja_loop_k28; };
@@ -335,14 +373,13 @@ with {
     with { loop(recM, recH) = recM, recH, H : ja_loop_k2101; };
   };
 
-  // ===== DC blocker =====
+  // ===== Prototype tape stage =====
   dc_blocker = fi.SVFTPT.HP2(10.0, 0.7071);
 
-  // ===== Tape stage =====
-  tape_stage(input_gain_lin, drive_gain, bias_mode) =
+  tape_stage(input_gain_lin, drive_gain, bias_mode_val) =
     _ * input_gain_lin
     : *(drive_gain)
-    : ja_hysteresis(bias_mode)
+    : ja_hysteresis(bias_mode_val)
     : dc_blocker;
 };
 
@@ -364,12 +401,14 @@ with {
 //
 // #### Test
 // ```
-// tape_channel_ui_test = par(i, 2, tape_channel_ui);
+// jah = library("jahysteresis.lib");
+// tape_channel_ui_test = par(i, 2, jah.tape_channel_ui);
 // ```
 //
 // #### References
 //
-// * README.md (JA hysteresis tape overview)
+// * Jiles, D.C. and Atherton, D.L. (1986) "Theory of ferromagnetic hysteresis"
+// * <https://github.com/Mando-369/FAUST_FSM_TAPE>
 //-------------------------------------------------
 tape_channel_ui =
   tape_channel(input_gain_db, output_gain_db, drive_db_ui, bias_mode_ui, mix_ui)
@@ -380,5 +419,4 @@ with {
   bias_mode_ui   = nentry("Bias Mode [style:menu{'K28 Ultra LoFi':0;'K45 LoFi':1;'K63 Vintage':2;'K99 Warm':3;'K121 Standard':4;'K187 HQ':5;'K253 Detailed':6;'K495 Ultra':7;'K1045 Extreme':8;'K2101 Beyond':9}]", 4, 0, 9, 1);
   mix_ui         = hslider("Mix [Dry->Wet]", 1.0, 0.0, 1.0, 0.01) : si.smoo;
 };
-
 process = par(i, 2, tape_channel_ui);
