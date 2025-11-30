@@ -75,6 +75,43 @@ cd scripts && python3 generate_ja_lut.py --mode K121 --bias-level 0.41 --output-
 # Open juce_plugin/JA_Hysteresis_CPP.jucer, save, build from Xcode
 ```
 
+## Ondemand Primitive (Experimental)
+
+The `ondemand` primitive eliminates parallel computation overhead by only computing the active mode branch.
+
+**Prototype**: `faust/test/ja_streaming_bias_proto_od.dsp`
+
+**Note**: The dev fork is **not in git** (too large). Install manually:
+```bash
+git clone -b master-dev-ocpp-od-fir-2-FIR13 https://github.com/grame-cncm/faust.git tools/faust-ondemand
+cd tools/faust-ondemand/build && make
+```
+
+### Build with Ondemand
+
+```bash
+# Compile DSP to C++
+./tools/faust-ondemand/build/bin/faust faust/test/ja_streaming_bias_proto_od.dsp -o faust/test/TestOD.cpp
+
+# Build AU plugin (from project root)
+bash -c 'export PATH="$(pwd)/tools/faust-ondemand/build/bin:$PATH" && \
+export FAUSTARCH="$(pwd)/tools/faust-ondemand/architecture" && \
+export FAUSTLIB="$(pwd)/tools/faust-ondemand/share/faust" && \
+export FAUSTINC="$(pwd)/tools/faust-ondemand/architecture" && \
+$(pwd)/tools/faust-ondemand/tools/faust2appls/faust2juce \
+  -jucemodulesdir $(pwd)/JUCE/modules \
+  faust/test/ja_streaming_bias_proto_od.dsp'
+
+# Generate Xcode project and build
+JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer \
+  --resave faust/test/ja_streaming_bias_proto_od/ja_streaming_bias_proto_od.jucer
+
+xcodebuild -project faust/test/ja_streaming_bias_proto_od/Builds/MacOSX/ja_streaming_bias_proto_od.xcodeproj \
+  -scheme "ja_streaming_bias_proto_od - AU" -configuration Release build
+```
+
+Plugin installs to `~/Library/Audio/Plug-Ins/Components/`.
+
 ## File Structure
 
 ```
@@ -82,10 +119,13 @@ FAUST_FSM_TAPE/
 ├── JUCE/                           # Shared (gitignored)
 ├── faust/
 │   ├── jahysteresis.lib            # Contribution-ready FAUST library
-│   ├── ja_lut_k*.lib               # Precomputed 2D LUTs (K28-K1920)
+│   ├── ja_lut_k*.lib               # Precomputed 2D LUTs (K28-K2101)
 │   ├── rebuild_faust.sh            # Rebuild without changing plugin IDs
 │   ├── dev/
-│   │   └── ja_streaming_bias_proto.dsp   # Working prototype (reference)
+│   │   └── ja_streaming_bias_proto.dsp   # Working prototype (ba.if version)
+│   ├── test/
+│   │   ├── ja_streaming_bias_proto_od.dsp  # Ondemand prototype
+│   │   └── ja_lut_k*.lib           # LUTs for test builds
 │   └── examples/
 │       └── jah_tape_demo.dsp       # Demo importing jahysteresis.lib
 ├── juce_plugin/
@@ -94,6 +134,8 @@ FAUST_FSM_TAPE/
 │   └── Source/
 ├── scripts/
 │   └── generate_ja_lut.py          # LUT generator
+├── tools/
+│   └── faust-ondemand/             # Dev fork with ondemand primitive
 └── docs/
     ├── CURRENT_STATUS.md           # Project status and open problems
     └── LUT_RESTRUCTURE_PLAN.md     # Unified LUT optimization plan

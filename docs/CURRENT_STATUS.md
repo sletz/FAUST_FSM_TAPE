@@ -1,6 +1,6 @@
 # FAUST JA Hysteresis Library — Current Status
 
-**Last updated**: 2025-11-29
+**Last updated**: 2025-11-30
 **Collaborators**: Thomas Mandolini (OmegaDSP), GRAME (Stéphane Letz)
 
 ---
@@ -25,7 +25,8 @@ Create a reusable **FAUST library (`jahysteresis.lib`)** for Jiles-Atherton magn
 | Phase-locked bias oscillator | Complete | Fixed cycles/sample, sample-rate invariant |
 | 2D LUT optimization | Complete | 1 real substep + LUT lookup |
 | 10 bias modes (K28-K2101) | Complete | LoFi to beyond-physical range (all half-integer cycles) |
-| FAUST prototype | Complete | `dev/ja_streaming_bias_proto.dsp` |
+| FAUST prototype (ba.if) | Complete | `dev/ja_streaming_bias_proto.dsp` |
+| FAUST prototype (ondemand) | Complete | `test/ja_streaming_bias_proto_od.dsp` |
 | FAUST library | In Progress | `jahysteresis.lib` (contribution-ready) |
 | C++ reference | Complete | `JAHysteresisScheduler` with ~11% CPU |
 
@@ -49,38 +50,42 @@ Create a reusable **FAUST library (`jahysteresis.lib`)** for Jiles-Atherton magn
 
 ## Open Problems
 
-### 1. Parallel Computation Overhead (Priority: High)
+### 1. Parallel Computation Overhead (Priority: High) — SOLVED
 
 **Problem**: FAUST `ba.if` is a signal selector, not a conditional branch. All 10 mode loops are computed every sample; `ba.if` just picks the output.
 
-**Impact**: ~10x unnecessary CPU overhead for multi-mode support.
+**Solution**: The **Ondemand primitive** (Yann Orlarey, IFC 24) is now working! It enables true conditional block execution where only the selected mode computes.
 
-**Proposed solution**: Unified LUT with mode-indexed offset (see `docs/LUT_RESTRUCTURE_PLAN.md`).
+**Implementation**: `faust/test/ja_streaming_bias_proto_od.dsp` uses `ondemand` with a dev fork in `tools/faust-ondemand/`.
 
 ```faust
-// Current: 10 parallel computations
-ba.if(mode < 0.5, loopK28, ba.if(mode < 1.5, loopK32, ...))
+// Old: 10 parallel computations (ba.if)
+ba.if(mode < 0.5, loopK28, ba.if(mode < 1.5, loopK45, ...))
 
-// Proposed: Single computation with mode index
-ja_lookup_m_end(mode, M1, H_audio)  // mode selects offset into unified table
+// New: Only active mode computes (ondemand)
+sum(i, 10, clk(i) * (clk(i) : ondemand(loop(i, H_in))))
 ```
 
-**Future solution**: The upcoming **Ondemand primitive** (Yann Orlarey, IFC 24) will allow conditional block execution. This would enable true branching where only the selected mode computes.
+**Status**: Prototype builds and runs as AU plugin. CPU testing pending.
 
-### 2. Harmonic Imprint Research (Priority: High)
+### 2. Harmonic Imprint Research (Priority: High) — SOLVED
 
-**Observation**: Each K/bias setting produces a distinct harmonic signature ("character").
+**Solution**: All modes now use **half-integer cycles + odd substeps**. This ensures opposite bias polarity between adjacent samples, introducing even harmonics for warmer, more musical tone.
 
-**Problem**: Current mode selection (K28-K1920) is somewhat arbitrary. Need systematic analysis to identify:
-- Which K/bias combinations produce musically useful imprints
-- Optimal subset for the control range (lofi-gritty → highend-beyond)
-- Whether intermediate values can be interpolated or need discrete LUTs
+| Mode | Cycles | Substeps | Character |
+|------|--------|----------|-----------|
+| K28 | 1.5 | 27 | Maximum grit |
+| K45 | 2.5 | 45 | Crunchy, lo-fi |
+| K63 | 3.5 | 63 | Classic tape |
+| K99 | 4.5 | 99 | Smooth warmth |
+| K121 | 5.5 | 121 | Standard (default) |
+| K187 | 8.5 | 187 | High quality |
+| K253 | 11.5 | 253 | Very detailed |
+| K495 | 22.5 | 495 | Ultra detailed |
+| K1045 | 47.5 | 1045 | Extreme |
+| K2101 | 95.5 | 2101 | Beyond physical |
 
-**Research needed**:
-- Spectra/Harmonic analysis of each mode with test signals (Plugin Doctor, sine sweeps, impulses, music)
-- THD+N measurements across drive levels
-- Subjective listening tests to identify "sweet spots"
-- Correlation between substep count and harmonic distribution
+**Key insight**: Lower substep counts introduce inter-sample "aliasing" that manifests as characteristic harmonics — a feature for lo-fi modes, minimized in HQ modes.
 
 ### 3. LUT Parameter Flexibility (Priority: Medium)
 
@@ -181,37 +186,11 @@ Key documentation reviewed:
 
 ## Research Directions
 
-### Harmonic Imprint Characterization
-
-Goal: Map the K/bias parameter space to musical descriptors.
-
-| Mode | Cycles | Substeps | Expected Character | Status |
-|------|--------|----------|-------------------|--------|
-| K28 | 1.5 | 27 | Maximum grit, aliasing artifacts | Rich harmonics |
-| K45 | 2.5 | 45 | Crunchy, lo-fi | Rich harmonics |
-| K63 | 3.5 | 63 | Classic tape saturation | Rich harmonics |
-| K99 | 4.5 | 99 | Warm, smooth | Rich harmonics |
-| K121 | 5.5 | 121 | Standard, balanced | Rich harmonics |
-| K2101 | 95.5 | 2101 | Beyond physical, ultra-smooth | Rich harmonics |
-
-**Key insight**: All modes now use half-integer cycles + odd substeps, ensuring opposite bias polarity between adjacent samples. This introduces even harmonics for warmer, more musical tone.
-
-**Hypothesis**: Lower substep counts introduce inter-sample aliasing that manifests as characteristic harmonics. This is a "feature" for lo-fi modes but should be minimized for high-quality modes.
-
-### Perceptual Mode Reduction
-
-**Question**: Do we need 10 discrete modes, or can we interpolate between fewer anchor points?
-
-If K60 and K240 cover the perceptually distinct territory, we could:
-- Use only 2-3 LUTs
-- Interpolate between them for intermediate settings
-- Reduce memory and complexity
-
-### Bias Waveform Variations
+### Bias Waveform Variations (Future)
 
 Current: Pure sine bias oscillator.
 
-**Future exploration**:
+**Potential exploration**:
 - Asymmetric bias (different positive/negative excursions)
 - Harmonic-rich bias (triangle, modified sine)
 - These would require new LUT sets but could expand tonal palette
@@ -280,7 +259,7 @@ Invited by Stéphane Letz to present at **International Faust Conference 2026**:
 ## Questions for GRAME
 
 1. Any recommendations for managing multiple LUT variants (mode × parameter combinations)?
-2. Timeline for the **Ondemand primitive**? (Would solve parallel computation overhead)
+2. ~~Timeline for the **Ondemand primitive**?~~ — Working! Dev fork in `tools/faust-ondemand/`
 3. Best practices for contributing optimized libraries to faustlibraries?
 
 ---
